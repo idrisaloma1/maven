@@ -1,0 +1,34 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Copy files to EC2
+        run: |
+          rsync -avz -e "ssh -o StrictHostKeyChecking=no" ./ your-username@your-ec2-public-dns:/path/to/your/project
+
+      - name: Install dependencies and restart services
+        run: |
+          ssh -o StrictHostKeyChecking=no your-username@your-ec2-public-dns << 'EOF'
+          cd /path/to/your/project
+          source venv/bin/activate
+          pip install -r requirements.txt
+          sudo systemctl restart nginx
+          pkill gunicorn
+          gunicorn --workers 3 --bind 127.0.0.1:8000 wsgi:app &
+          EOF
